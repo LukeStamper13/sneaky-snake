@@ -6,9 +6,14 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
+const MOVE_UP = "up";
+const MOVE_DOWN = "down";
+const MOVE_LEFT = "left";
+const MOVE_RIGHT = "right";
+
 let game = {
 	gridSize: 20,
-	refreshRate: 250, // Milliseconds
+	refreshRate: 100, // Milliseconds
 };
 
 class Cobra {
@@ -23,11 +28,12 @@ class Cobra {
 		this.y = y;
 		this.game = game;
 		this.ctx = ctx;
-		this.currentDirection = "right";
+		this.currentDirection = MOVE_RIGHT;
 		this.head = new Segment(this.x, this.y, "lime", this.ctx);
 		this.segments = [];
 
 		this.lastUpdate = 0;
+		this.wireUpEvents();
 	}
 
 	/**
@@ -51,7 +57,7 @@ class Cobra {
 				this.head.x += this.game.gridSize;
 				break;
 			case "left":
-				this.head.y -= this.game.gridSize;
+				this.head.x -= this.game.gridSize;
 				break;
 		}
 	}
@@ -60,6 +66,27 @@ class Cobra {
 		this.head.draw();
 		this.segments.forEach((s) => {
 			s.draw();
+		});
+	}
+
+	wireUpEvents() {
+		document.addEventListener("keydown", (e) => {
+			console.log(e.code);
+
+			switch (e.code) {
+				case "ArrowUp":
+					this.currentDirection = MOVE_UP;
+					break;
+				case "ArrowDown":
+					this.currentDirection = MOVE_DOWN;
+					break;
+				case "ArrowRight":
+					this.currentDirection = MOVE_RIGHT;
+					break;
+				case "ArrowLeft":
+					this.currentDirection = MOVE_LEFT;
+					break;
+			}
 		});
 	}
 }
