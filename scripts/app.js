@@ -13,7 +13,7 @@ const MOVE_RIGHT = "right";
 
 let game = {
 	gridSize: 20,
-	refreshRate: 100, // Milliseconds
+	refreshRate: 50, // Milliseconds
 };
 
 class Cobra {
@@ -116,7 +116,38 @@ class Segment {
 	}
 }
 
+class Food {
+	/**
+	 * @param {CanvasRenderingContext2D} ctx
+	 */
+	constructor(ctx) {
+		this.ctx = ctx;
+		this.x = 0;
+		this.y = 0;
+		this.radius = game.gridSize / 2;
+		this.color = "red";
+		this.growBy = 1;
+		this.isEaten = false;
+	}
+
+	update() {}
+
+	draw() {
+		this.ctx.beginPath();
+		this.ctx.fillStyle = this.color;
+		this.ctx.arc(
+			this.x + this.radius,
+			this.y + this.radius,
+			this.radius,
+			0,
+			Math.PI * 2
+		);
+		this.ctx.closePath();
+	}
+}
+
 let c1 = new Cobra(5 * game.gridSize, 5 * game.gridSize, ctx, game);
+let f1 = new Food(ctx);
 
 let currentTime = 0;
 
@@ -128,6 +159,8 @@ function gameLoop(timeStamp) {
 
 	c1.update(elapsedTime);
 	c1.draw();
+
+	f1.draw();
 
 	requestAnimationFrame(gameLoop);
 }
