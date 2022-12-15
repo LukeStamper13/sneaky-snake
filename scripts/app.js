@@ -13,10 +13,16 @@ const MOVE_RIGHT = "right";
 
 let game = {
 	gridSize: 20,
-	refreshRate: 50, // Milliseconds
+	refreshRate: 75, // milliseconds
 };
 
-class Cobra {
+// player todos
+// we need to loose
+//      when we hit wall
+// 		when we hit ourselves
+//		when we hit another player
+
+class Player {
 	/**
 	 * @param {number} x
 	 * @param {number} y
@@ -28,12 +34,48 @@ class Cobra {
 		this.y = y;
 		this.game = game;
 		this.ctx = ctx;
+
+		this.requestedDirection = MOVE_DOWN;
+		this.currentDirection = MOVE_DOWN;
+		this.requestedDirection = MOVE_UP;
+		this.currentDirection = MOVE_UP;
+		this.requestedDirection = MOVE_LEFT;
+		this.currentDirection = MOVE_LEFT;
+		this.requestedDirection = MOVE_RIGHT;
 		this.currentDirection = MOVE_RIGHT;
-		this.head = new Segment(this.x, this.y, "lime", this.ctx);
+		this.head = new Segment(this.x, this.y, "yellow", this.ctx);
+		/** @type {Array<Segment>} */
 		this.segments = [];
+		this.sneakCount = 0;
+		let isDead = false;
 
 		this.lastUpdate = 0;
 		this.wireUpEvents();
+	}
+
+	isReverseMove() {
+		if (
+			this.requestedDirection == MOVE_RIGHT &&
+			this.currentDirection == MOVE_LEFT
+		)
+			return true;
+		if (
+			this.requestedDirection == MOVE_LEFT &&
+			this.currentDirection == MOVE_RIGHT
+		)
+			return true;
+		if (
+			this.requestedDirection == MOVE_DOWN &&
+			this.currentDirection == MOVE_UP
+		)
+			return true;
+		if (
+			this.requestedDirection == MOVE_UP &&
+			this.currentDirection == MOVE_DOWN
+		)
+			return true;
+
+		return false;
 	}
 
 	/**
@@ -41,28 +83,75 @@ class Cobra {
 	 */
 	update(elapsedTime) {
 		this.lastUpdate += elapsedTime;
-
 		if (this.lastUpdate < this.game.refreshRate) return;
-
 		this.lastUpdate = 0;
 
+		if (this.isReverseMove()) {
+			if (this.sneakCount > 0) {
+				this.currentDirection = this.requestedDirection;
+				this.sneakCount--;
+
+				let headX = this.head.x;
+				let headY = this.head.y;
+
+				/**
+				 * @type {Segment} */
+				//@ts-ignore
+				let tail = this.segments.pop();
+
+				this.segments = this.segments.reverse();
+
+				this.head.x = tail?.x;
+				this.head.y = tail?.y;
+
+				tail.x = headX;
+				tail.y = headY;
+
+				this.segments.push(tail);
+			}
+		} else {
+			this.currentDirection = this.requestedDirection;
+		}
+
+		for (let i = this.segments.length - 1; i >= 1; i--) {
+			this.segments[i].x = this.segments[i - 1].x;
+			this.segments[i].y = this.segments[i - 1].y;
+		}
+
+		if (this.segments.length > 0) {
+			this.segments[0].x = this.head.x;
+			this.segments[0].y = this.head.y;
+		}
+
 		switch (this.currentDirection) {
-			case "down":
+			case MOVE_DOWN:
 				this.head.y += this.game.gridSize;
 				break;
-			case "up":
+			case MOVE_UP:
 				this.head.y -= this.game.gridSize;
 				break;
-			case "right":
+			case MOVE_RIGHT:
 				this.head.x += this.game.gridSize;
 				break;
-			case "left":
+			case MOVE_LEFT:
 				this.head.x -= this.game.gridSize;
 				break;
+		}
+
+		if (
+			this.head.x < 0 ||
+			this.head.y < 0 ||
+			this.head.x >= canvas.width ||
+			this.head.y >= canvas.height ||
+			this.segments.some((s) => s.x == this.head.x && s.y == this.head.y)
+		) {
+			this.isDead = true;
 		}
 	}
 
 	draw() {
+		// if (this.isDead) return;
+
 		this.head.draw();
 		this.segments.forEach((s) => {
 			s.draw();
@@ -71,23 +160,34 @@ class Cobra {
 
 	wireUpEvents() {
 		document.addEventListener("keydown", (e) => {
-			console.log(e.code);
-
+			// console.log(e.code);
 			switch (e.code) {
 				case "ArrowUp":
-					this.currentDirection = MOVE_UP;
+					this.requestedDirection = MOVE_UP;
 					break;
 				case "ArrowDown":
-					this.currentDirection = MOVE_DOWN;
+					this.requestedDirection = MOVE_DOWN;
 					break;
 				case "ArrowRight":
-					this.currentDirection = MOVE_RIGHT;
+					this.requestedDirection = MOVE_RIGHT;
 					break;
 				case "ArrowLeft":
-					this.currentDirection = MOVE_LEFT;
+					this.requestedDirection = MOVE_LEFT;
 					break;
 			}
 		});
+	}
+
+	/**
+	 * @param {Food} food
+	 */
+	grow(food) {
+		for (let i = 0; i < food.growBy; i++) {
+			this.segments.push(
+				new Segment(this.head.x, this.head.y, "lime", this.ctx)
+			);
+		}
+		this.sneakCount += food.sneakAttempts;
 	}
 }
 
@@ -102,8 +202,7 @@ class Segment {
 		this.x = x;
 		this.y = y;
 		this.w = game.gridSize;
-		this.h = game.gridSize;
-		this.segments = [];
+		this.h = this.w;
 		this.color = color;
 		this.ctx = ctx;
 	}
@@ -116,6 +215,12 @@ class Segment {
 	}
 }
 
+// Food Todos
+// spawn in random grid
+//		only spawn on empty grid spots
+// How many food spawn?
+//  	Make it configurable?
+
 class Food {
 	/**
 	 * @param {CanvasRenderingContext2D} ctx
@@ -127,12 +232,79 @@ class Food {
 		this.radius = game.gridSize / 2;
 		this.color = "red";
 		this.growBy = 1;
+		this.sneakAttempts = 0;
+		this.isEaten = true;
+	}
+
+	/**
+	 * @param {Array<Player>} [players]
+	 * @param {Array<Food>} [food]
+	 */
+	spawn(players, food) {
+		// reset eaten state
 		this.isEaten = false;
+
+		let foodType = Math.floor(Math.random() * 8 + 1);
+		switch (foodType) {
+			case 3:
+				this.color = "gold";
+				this.growBy = 3;
+				this.sneakAttempts = 2;
+				break;
+			case 2:
+			case 3:
+			case 4:
+				this.color = "blue";
+				this.growBy = 2;
+				this.sneakAttempts = 1;
+				break;
+			default:
+				this.color = "red";
+				this.growBy = 1;
+				break;
+		}
+
+		let xGridMaxValue = canvas.width / game.gridSize;
+		let yGridMaxValue = canvas.height / game.gridSize;
+		let randomX = Math.floor(Math.random() * xGridMaxValue);
+		let randomY = Math.floor(Math.random() * yGridMaxValue);
+
+		const MAX_TRIES = 10;
+		let tryCount = 1;
+		do {
+			let isOverlapping = false;
+
+			players?.forEach((p) => {
+				if (p.head.x == randomX && p.head.y == randomY) {
+					isOverlapping = true;
+				}
+				if (p.segments.some((s) => s.x == randomX && s.y == randomY)) {
+					isOverlapping = true;
+				}
+			});
+
+			if ((isOverlapping = false)) {
+				isOverlapping =
+					food?.some((f) => f.x == randomX && f.y == randomY) ??
+					false;
+			}
+
+			if ((isOverlapping = false)) {
+				tryCount = MAX_TRIES;
+			} else {
+				tryCount++;
+			}
+		} while (tryCount < MAX_TRIES);
+
+		this.x = randomX * game.gridSize;
+		this.y = randomY * game.gridSize;
 	}
 
 	update() {}
 
 	draw() {
+		if (this.isEaten) return;
+
 		this.ctx.beginPath();
 		this.ctx.fillStyle = this.color;
 		this.ctx.arc(
@@ -142,25 +314,64 @@ class Food {
 			0,
 			Math.PI * 2
 		);
+		this.ctx.fill();
 		this.ctx.closePath();
 	}
 }
 
-let c1 = new Cobra(5 * game.gridSize, 5 * game.gridSize, ctx, game);
-let f1 = new Food(ctx);
+// Other Things we can run into  - Ideas
+// Bomb
+// Makes your faster
+
+let p1 = new Player(5 * game.gridSize, 5 * game.gridSize, ctx, game);
+
+let food = [new Food(ctx), new Food(ctx), new Food(ctx), new Food(ctx)];
+
+/**
+ * @param {Array<Player>} players
+ * @param {Array<Food>} food
+ */
+function checkIfFoodIsConsumed(players, food) {
+	food.forEach((f) => {
+		players.forEach((p) => {
+			//
+			if (p.head.x == f.x && p.head.y == f.y) {
+				console.log("food is eaten");
+				// food is eaten
+				f.isEaten = true;
+				p.grow(f);
+			}
+		});
+	});
+}
 
 let currentTime = 0;
 
-function gameLoop(timeStamp) {
-	let elapsedTime = timeStamp - currentTime;
-	currentTime = timeStamp;
-
+function gameLoop(timestamp) {
+	let elapsedTime = timestamp - currentTime;
+	currentTime = timestamp;
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-	c1.update(elapsedTime);
-	c1.draw();
+	p1.update(elapsedTime);
+	p1.draw();
 
-	f1.draw();
+	food.forEach((f) => {
+		f.draw();
+	});
+
+	checkIfFoodIsConsumed([p1], food);
+
+	// filter out uneaten food, and then respawn food
+	// that has been eaten
+	food.filter((f) => f.isEaten).forEach((f) => {
+		f.spawn();
+	});
+
+	let isGameOver = [p1].some((p) => p.isDead);
+
+	if (isGameOver) {
+		return;
+	}
 
 	requestAnimationFrame(gameLoop);
 }
